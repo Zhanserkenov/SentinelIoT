@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Data / models
+app/ml/iot_rf_model_balanced_with_medians_normalized.pkl
