@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Tuple
 from fastapi import HTTPException, status
 from app.ml.model_loader import get_model_objects
 from app.ml.schemas import WindowAnalysisResponse, SourceMacAnalysis, AnalysisSummary, FlowFeatures
+from sqlalchemy.ext.asyncio import AsyncSession
 
 ALERT_THRESHOLD = 0.61
 SUSPICION_THRESHOLD = 0.40
@@ -37,8 +38,9 @@ def _preprocess_flows(df: pd.DataFrame, features: List[str], medians: Dict[str, 
     return df[features].astype(float)
 
 
-def analyze_window(flows: List[FlowFeatures], user_id: int) -> WindowAnalysisResponse:
+def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnalysisResponse, List[dict]]:
     total_flows = len(flows)
+    suspicious_packets: List[dict] = []
 
     if not flows:
         result = WindowAnalysisResponse(
@@ -51,7 +53,7 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> WindowAnalysisRes
             )
         )
         _user_results[user_id] = result
-        return result
+        return result, suspicious_packets
 
     try:
         model, scaler, features, medians = _get_model_objects()
@@ -83,7 +85,7 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> WindowAnalysisRes
             )
         )
         _user_results[user_id] = result
-        return result
+        return result, suspicious_packets
 
     try:
         X_scaled = scaler.transform(X)
@@ -96,7 +98,9 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> WindowAnalysisRes
 
     df_flows["probability"] = probabilities
 
-    sources, anomalous_count, suspicious_count = _analyze_sources_by_mac(df_flows)
+    sources, anomalous_count, suspicious_count, packets = _analyze_sources_by_mac(df_flows)
+
+    suspicious_packets.extend(packets)
 
     result = WindowAnalysisResponse(
         sources=sources,
@@ -109,13 +113,14 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> WindowAnalysisRes
     )
 
     _user_results[user_id] = result
-    return result
+    return result, suspicious_packets
 
 
-def _analyze_sources_by_mac(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacAnalysis], int, int]:
+def _analyze_sources_by_mac(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacAnalysis], int, int, List[dict]]:
     sources = {}
     anomalous_count = 0
     suspicious_count = 0
+    suspicious_packets: List[dict] = []
 
     for src_mac, group in df_flows.groupby("src_mac"):
         group_probs = group["probability"].values
@@ -133,6 +138,8 @@ def _analyze_sources_by_mac(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMac
         elif suspicious_flows >= MIN_SUSPICIOUS_COUNT:
             status_value = "suspicious"
             suspicious_count += 1
+
+            suspicious_packets.extend(group.to_dict("records"))
         else:
             status_value = "normal"
 
@@ -144,8 +151,7 @@ def _analyze_sources_by_mac(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMac
             status=status_value
         )
 
-    return sources, anomalous_count, suspicious_count
-
+    return sources, anomalous_count, suspicious_count, suspicious_packets
 
 def get_user_analysis_result(user_id: int) -> WindowAnalysisResponse:
     if user_id not in _user_results:
