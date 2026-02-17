@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any
+from sqlalchemy import select
 
 from app.suspicious.model import SuspiciousPacket
-
 
 async def save_suspicious_packets(db: AsyncSession, suspicious_packets: List[Dict[str, Any]], user_id: int) -> None:
     if not suspicious_packets:
@@ -32,3 +32,7 @@ async def save_suspicious_packets(db: AsyncSession, suspicious_packets: List[Dic
     db.add_all(packet_objects)
     await db.commit()
 
+async def get_suspicious_packets(db: AsyncSession) -> List[SuspiciousPacket]:
+    result = await db.execute(select(SuspiciousPacket))
+    packets = result.scalars().all()
+    return list(packets)
