@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Enum as SqlEnum
 
 from app.core.database import Base
+from app.suspicious.verdicts import PacketLabel
 
 
 class SuspiciousPacket(Base):
@@ -8,7 +9,9 @@ class SuspiciousPacket(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
-    src_mac = Column(String, nullable=False)
+    src_ip = Column(String, nullable=False, index=True)
+    src_mac = Column(String, nullable=False, index=True)
+    dst_mac = Column(String, nullable=False, index=True)
     probability = Column(Float, nullable=False)
     
     ack_flag_number = Column(Float, nullable=False)
@@ -23,3 +26,5 @@ class SuspiciousPacket(Base):
     psh_flag_number = Column(Float, nullable=False)
     min = Column(Float, nullable=False)
     dns = Column(Float, nullable=False)
+
+    label = Column(SqlEnum(PacketLabel), default=PacketLabel.PENDING, nullable=False, index=True)

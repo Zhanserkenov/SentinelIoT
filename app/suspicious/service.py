@@ -12,7 +12,11 @@ async def save_suspicious_packets(db: AsyncSession, suspicious_packets: List[Dic
     for packet in suspicious_packets:
         packet_obj = SuspiciousPacket(
             user_id=user_id,
+
+            src_ip=packet.get("src_ip", ""),
             src_mac=packet.get("src_mac", ""),
+            dst_mac=packet.get("dst_mac", ""),
+
             probability=packet.get("probability", 0.0),
             ack_flag_number=packet.get("ack_flag_number", 0.0),
             https=packet.get("https", 0.0),

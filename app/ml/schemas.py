@@ -3,7 +3,9 @@ from typing import Dict
 
 
 class FlowFeatures(BaseModel):
+    src_ip: str
     src_mac: str
+    dst_mac: str
 
     ack_flag_number: float
     https: float
@@ -20,7 +22,9 @@ class FlowFeatures(BaseModel):
 
 
 class SourceMacAnalysis(BaseModel):
+    src_ip: str
     src_mac: str
+    dst_mac: str
     flow_count: int
     max_probability: float
     alert_flows: int

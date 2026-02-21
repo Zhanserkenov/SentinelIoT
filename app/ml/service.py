@@ -4,7 +4,6 @@ from typing import List, Dict, Any, Tuple
 from fastapi import HTTPException, status
 from app.ml.model_loader import get_model_objects
 from app.ml.schemas import WindowAnalysisResponse, SourceMacAnalysis, AnalysisSummary, FlowFeatures
-from sqlalchemy.ext.asyncio import AsyncSession
 
 ALERT_THRESHOLD = 0.61
 SUSPICION_THRESHOLD = 0.40
@@ -98,7 +97,7 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
 
     df_flows["probability"] = probabilities
 
-    sources, anomalous_count, suspicious_count, packets = _analyze_sources_by_mac(df_flows)
+    sources, anomalous_count, suspicious_count, packets = _analyze_sources_by_ip(df_flows)
 
     suspicious_packets.extend(packets)
 
@@ -116,16 +115,19 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
     return result, suspicious_packets
 
 
-def _analyze_sources_by_mac(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacAnalysis], int, int, List[dict]]:
+def _analyze_sources_by_ip(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacAnalysis], int, int, List[dict]]:
     sources = {}
     anomalous_count = 0
     suspicious_count = 0
     suspicious_packets: List[dict] = []
 
-    for src_mac, group in df_flows.groupby("src_mac"):
+    for src_ip, group in df_flows.groupby("src_ip"):
         group_probs = group["probability"].values
 
-        print(f"MAC: {src_mac}, probabilities: {group_probs}")
+        src_mac = group["src_mac"].iloc[0]
+        dst_mac = group["dst_mac"].iloc[0]
+
+        print(f"IP: {src_ip} (MAC: {src_mac} -> {dst_mac}), probabilities: {group_probs}")
 
         flow_count = len(group_probs)
         max_probability = float(group_probs.max())
@@ -143,8 +145,10 @@ def _analyze_sources_by_mac(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMac
         else:
             status_value = "normal"
 
-        sources[str(src_mac)] = SourceMacAnalysis(
+        sources[str(src_ip)] = SourceMacAnalysis(
+            src_ip=str(src_ip),
             src_mac=str(src_mac),
+            dst_mac=str(dst_mac),
             flow_count=flow_count,
             max_probability=max_probability,
             alert_flows=alert_flows,
