@@ -13,3 +13,8 @@ venv/
 
 # Data / models
 app/ml/iot_rf_model_balanced_with_medians_normalized.pkl
+
+# Environment variables
+.env
+.env.local
+.env.*.local

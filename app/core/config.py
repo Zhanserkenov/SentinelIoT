@@ -2,11 +2,14 @@ from pydantic.v1 import BaseSettings
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:19660827@localhost:5432/medapp"
-    SYNC_DATABASE_URL = DATABASE_URL.replace("+asyncpg", "")
-    JWT_SECRET: str = "supersecretkey"
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    DATABASE_URL: str
+    JWT_SECRET: str
+    JWT_ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+
+    @property
+    def SYNC_DATABASE_URL(self) -> str:
+        return self.DATABASE_URL.replace("+asyncpg", "")
 
     class Config:
         env_file = ".env"
