@@ -1,8 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from sqlalchemy import select
 
 from app.suspicious.model import SuspiciousPacket
+from app.suspicious.verdicts import PacketLabel
+
 
 async def save_suspicious_packets(db: AsyncSession, suspicious_packets: List[Dict[str, Any]], user_id: int) -> None:
     if not suspicious_packets:
@@ -36,7 +38,37 @@ async def save_suspicious_packets(db: AsyncSession, suspicious_packets: List[Dic
     db.add_all(packet_objects)
     await db.commit()
 
-async def get_suspicious_packets(db: AsyncSession) -> List[SuspiciousPacket]:
-    result = await db.execute(select(SuspiciousPacket))
-    packets = result.scalars().all()
-    return list(packets)
+
+async def get_suspicious_packets(
+        db: AsyncSession,
+        user_id: Optional[int] = None,
+        src_ip: Optional[str] = None,
+        src_mac: Optional[str] = None,
+        dst_mac: Optional[str] = None,
+        label: Optional[PacketLabel] = None,
+        offset: int = 0
+) -> List[SuspiciousPacket]:
+
+    stmt = select(SuspiciousPacket)
+    limit = 30
+
+    if user_id is not None:
+        stmt = stmt.where(SuspiciousPacket.user_id == user_id)
+
+    if src_ip is not None:
+        stmt = stmt.where(SuspiciousPacket.src_ip == src_ip)
+
+    if src_mac is not None:
+        stmt = stmt.where(SuspiciousPacket.src_mac == src_mac)
+
+    if dst_mac is not None:
+        stmt = stmt.where(SuspiciousPacket.dst_mac == dst_mac)
+
+    if label is not None:
+        stmt = stmt.where(SuspiciousPacket.label == label)
+
+    stmt = stmt.order_by(SuspiciousPacket.id.desc()).limit(limit).offset(offset)
+
+    result = await db.execute(stmt)
+
+    return list(result.scalars().all())
