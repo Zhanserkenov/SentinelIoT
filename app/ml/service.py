@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import ipaddress
 from typing import List, Dict, Any, Tuple
 from fastapi import HTTPException, status
 from app.ml.model_loader import get_model_objects
@@ -37,9 +38,34 @@ def _preprocess_flows(df: pd.DataFrame, features: List[str], medians: Dict[str, 
     return df[features].astype(float)
 
 
-def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnalysisResponse, List[dict]]:
+def _create_alert_data(src_ip: str, flow_count: int, max_probability: float, group: pd.DataFrame) -> dict:
+    try:
+        ip_type = "Internal" if ipaddress.ip_address(src_ip).is_private else "External"
+    except ValueError:
+        ip_type = "Unknown"
+    
+    mean_columns = ["rate", "variance", "time_to_live", "ack_flag_number", "psh_flag_number"]
+    alert_data = {
+        "src_ip": str(src_ip),
+        "ip_type": ip_type,
+        "flow_count": flow_count,
+        "max_probability": max_probability
+    }
+    
+    for col in mean_columns:
+        if col in group.columns:
+            mean_value = float(group[col].mean())
+            alert_data[col] = round(mean_value, 2)
+        else:
+            alert_data[col] = 0.0
+    
+    return alert_data
+
+
+def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnalysisResponse, List[dict], List[dict]]:
     total_flows = len(flows)
     suspicious_packets: List[dict] = []
+    alerts_to_dispatch: List[dict] = []
 
     if not flows:
         result = WindowAnalysisResponse(
@@ -52,7 +78,7 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
             )
         )
         _user_results[user_id] = result
-        return result, suspicious_packets
+        return result, suspicious_packets, alerts_to_dispatch
 
     try:
         model, scaler, features, medians = _get_model_objects()
@@ -84,7 +110,7 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
             )
         )
         _user_results[user_id] = result
-        return result, suspicious_packets
+        return result, suspicious_packets, alerts_to_dispatch
 
     try:
         X_scaled = scaler.transform(X)
@@ -97,9 +123,10 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
 
     df_flows["probability"] = probabilities
 
-    sources, anomalous_count, suspicious_count, packets = _analyze_sources_by_ip(df_flows)
+    sources, anomalous_count, suspicious_count, packets, alerts = _analyze_sources_by_ip(df_flows)
 
     suspicious_packets.extend(packets)
+    alerts_to_dispatch.extend(alerts)
 
     result = WindowAnalysisResponse(
         sources=sources,
@@ -112,14 +139,15 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
     )
 
     _user_results[user_id] = result
-    return result, suspicious_packets
+    return result, suspicious_packets, alerts_to_dispatch
 
 
-def _analyze_sources_by_ip(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacAnalysis], int, int, List[dict]]:
+def _analyze_sources_by_ip(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacAnalysis], int, int, List[dict], List[dict]]:
     sources = {}
     anomalous_count = 0
     suspicious_count = 0
     suspicious_packets: List[dict] = []
+    alerts_to_dispatch: List[dict] = []
 
     for src_ip, group in df_flows.groupby("src_ip"):
         group_probs = group["probability"].values
@@ -137,6 +165,8 @@ def _analyze_sources_by_ip(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacA
         if max_probability >= SINGLE_PACKET_THRESHOLD or alert_flows >= MIN_ALERT_FLOWS:
             status_value = "anomaly"
             anomalous_count += 1
+            alert_data = _create_alert_data(str(src_ip), flow_count, max_probability, group)
+            alerts_to_dispatch.append(alert_data)
         elif suspicious_flows >= MIN_SUSPICIOUS_COUNT:
             status_value = "suspicious"
             suspicious_count += 1
@@ -155,7 +185,7 @@ def _analyze_sources_by_ip(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacA
             status=status_value
         )
 
-    return sources, anomalous_count, suspicious_count, suspicious_packets
+    return sources, anomalous_count, suspicious_count, suspicious_packets, alerts_to_dispatch
 
 def get_user_analysis_result(user_id: int) -> WindowAnalysisResponse:
     if user_id not in _user_results:
