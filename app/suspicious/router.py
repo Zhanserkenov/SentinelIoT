@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.suspicious.service import get_suspicious_packets
-from app.suspicious.schemas import SuspiciousPacketResponse
+from app.suspicious.service import get_suspicious_packets, update_packet_label
+from app.suspicious.schemas import SuspiciousPacketResponse, PacketLabelUpdateRequest
 from app.core.security import get_current_admin
 from app.suspicious.verdicts import PacketLabel
 from app.users.model import User
@@ -34,3 +34,19 @@ async def get_suspicious_packets_api(
     )
 
     return packets
+
+
+@router.patch("/packets/{packet_id}/label", response_model=SuspiciousPacketResponse)
+async def update_packet_label_api(
+        packet_id: int,
+        request: PacketLabelUpdateRequest,
+        current_user: User = Depends(get_current_admin),
+        db: AsyncSession = Depends(get_db)
+):
+    updated_packet = await update_packet_label(
+        db=db,
+        packet_id=packet_id,
+        new_label=request.label
+    )
+
+    return updated_packet

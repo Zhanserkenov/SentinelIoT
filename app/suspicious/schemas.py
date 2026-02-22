@@ -2,6 +2,10 @@ from pydantic import BaseModel
 from app.suspicious.verdicts import PacketLabel
 
 
+class PacketLabelUpdateRequest(BaseModel):
+    label: PacketLabel
+
+
 class SuspiciousPacketResponse(BaseModel):
     id: int
     user_id: int

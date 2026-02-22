@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any, Optional
 from sqlalchemy import select
+from fastapi import HTTPException, status
 
 from app.suspicious.model import SuspiciousPacket
 from app.suspicious.verdicts import PacketLabel
@@ -72,3 +73,21 @@ async def get_suspicious_packets(
     result = await db.execute(stmt)
 
     return list(result.scalars().all())
+
+
+async def update_packet_label(db: AsyncSession, packet_id: int, new_label: PacketLabel) -> SuspiciousPacket:
+    stmt = select(SuspiciousPacket).where(SuspiciousPacket.id == packet_id)
+    result = await db.execute(stmt)
+    packet = result.scalar_one_or_none()
+
+    if packet is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Packet with id {packet_id} not found"
+        )
+
+    packet.label = new_label
+    await db.commit()
+    await db.refresh(packet)
+
+    return packet
