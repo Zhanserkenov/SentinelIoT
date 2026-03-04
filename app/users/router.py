@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.users.service import update_telegram_user_id
-from app.users.schemas import TelegramUserIdUpdateRequest
+from app.users.schemas import TelegramUserIdSchema
 from app.users.model import User
 from app.core.security import get_current_user
 from app.core.database import get_db
@@ -9,12 +9,25 @@ from app.core.database import get_db
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-@router.patch("/me/telegram-id")
+@router.get("/me/telegram-id", response_model=TelegramUserIdSchema)
+async def get_telegram_user_id_api(current_user: User = Depends(get_current_user)):
+    return {
+        "telegram_user_id": current_user.telegram_user_id
+    }
+
+
+@router.patch("/me/telegram-id", response_model=TelegramUserIdSchema)
 async def update_telegram_user_id_api(
-        request: TelegramUserIdUpdateRequest,
+        request: TelegramUserIdSchema,
         current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
+    if request.telegram_user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="telegram_user_id cannot be None"
+        )
+    
     updated_user = await update_telegram_user_id(
         db=db,
         user_id=current_user.id,
@@ -22,7 +35,5 @@ async def update_telegram_user_id_api(
     )
 
     return {
-        "message": "Telegram user ID updated successfully",
         "telegram_user_id": updated_user.telegram_user_id
     }
-

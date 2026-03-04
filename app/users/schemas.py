@@ -1,6 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+from typing import Optional
 
 
-class TelegramUserIdUpdateRequest(BaseModel):
-    telegram_user_id: str
+class TelegramUserIdSchema(BaseModel):
+    telegram_user_id: Optional[str]
+
+
+
 
