@@ -18,3 +18,5 @@ app/ml/iot_rf_model_balanced_with_medians_normalized.pkl
 .env
 .env.local
 .env.*.local
+
+google_drive_credentials.json

@@ -27,7 +27,7 @@ async def update_telegram_user_id_api(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="telegram_user_id cannot be None"
         )
-    
+
     updated_user = await update_telegram_user_id(
         db=db,
         user_id=current_user.id,
