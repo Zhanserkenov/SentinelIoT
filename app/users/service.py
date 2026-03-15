@@ -35,3 +35,5 @@ async def update_telegram_user_id(db: AsyncSession, user_id: int, telegram_user_
     await db.refresh(user)
 
     return user
+
+
