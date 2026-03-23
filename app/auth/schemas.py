@@ -4,8 +4,14 @@ class AuthSchema(BaseModel):
     email: EmailStr
     password: str
 
-class EmailConfirmationSchema(BaseModel):
-    token: str
+class RegistrationCodeRequestSchema(BaseModel):
+    email: EmailStr
+
+
+class RegistrationCompleteSchema(BaseModel):
+    email: EmailStr
+    code: str
+    password: str
 
 class PasswordResetRequestSchema(BaseModel):
     email: EmailStr

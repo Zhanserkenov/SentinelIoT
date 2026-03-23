@@ -35,17 +35,16 @@ async def send_email(to_email: str, subject: str, body: str) -> None:
     await asyncio.to_thread(_send_email_sync, to_email, subject, body)
 
 
-async def send_email_confirmation(email: str, token: str) -> None:
-    confirmation_url = f"{FRONTEND_URL}/auth/confirm-email?token={token}"
-    subject = "Confirm Your Email Address"
+async def send_registration_code(email: str, code: str) -> None:
+    subject = "Your Registration Code"
     body = f"""
     <html>
         <body>
-            <h2>Email Confirmation</h2>
-            <p>Thank you for registering! Please confirm your email address by clicking the link below:</p>
-            <p><a href="{confirmation_url}">Confirm Email</a></p>
-            <p>This link will expire in 5 minutes.</p>
-            <p>If you did not register for this account, please ignore this email.</p>
+            <h2>Complete Your Registration</h2>
+            <p>Use this code to finish creating your account:</p>
+            <p><strong>{code}</strong></p>
+            <p>This code will expire in 3 minutes.</p>
+            <p>If you did not request registration, please ignore this email.</p>
         </body>
     </html>
     """

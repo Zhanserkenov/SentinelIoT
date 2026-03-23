@@ -2,16 +2,17 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.service import (
-    register_user, 
-    login_user, 
-    confirm_email, 
-    request_password_reset, 
+    register_user,
+    send_registration_email_code,
+    login_user,
+    request_password_reset,
     reset_password
 )
 from app.auth.schemas import (
-    AuthSchema, 
-    EmailConfirmationSchema,
-    PasswordResetRequestSchema, 
+    AuthSchema,
+    RegistrationCodeRequestSchema,
+    RegistrationCompleteSchema,
+    PasswordResetRequestSchema,
     PasswordResetSchema
 )
 from app.core.database import get_db
@@ -23,13 +24,21 @@ router = APIRouter(
 )
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register(user_data: AuthSchema, db: AsyncSession = Depends(get_db)):
-    user = await register_user(db, user_data.email, user_data.password)
+async def register(user_data: RegistrationCompleteSchema, db: AsyncSession = Depends(get_db)):
+    user = await register_user(db, user_data.email, user_data.code, user_data.password)
 
     return {
-        "message": "User registered successfully. Please check your email to confirm your account.",
+        "message": "User registered successfully.",
         "user_id": user.id
     }
+
+@router.post("/register/send-code")
+async def send_registration_code_endpoint(
+    data: RegistrationCodeRequestSchema,
+    db: AsyncSession = Depends(get_db)
+):
+    await send_registration_email_code(db, data.email)
+    return {"message": "Verification code sent to email"}
 
 @router.post("/login")
 async def login(user_data: AuthSchema, db: AsyncSession = Depends(get_db)):
@@ -39,17 +48,6 @@ async def login(user_data: AuthSchema, db: AsyncSession = Depends(get_db)):
     return {
         "message": "User logged in",
         "access_token": access_token
-    }
-
-@router.post("/confirm-email")
-async def confirm_email_endpoint(
-    confirmation_data: EmailConfirmationSchema, 
-    db: AsyncSession = Depends(get_db)
-):
-    user = await confirm_email(db, confirmation_data.token)
-    return {
-        "message": "Email confirmed successfully",
-        "user_id": user.id
     }
 
 @router.post("/request-password-reset")
