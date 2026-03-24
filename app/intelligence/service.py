@@ -5,12 +5,12 @@ from sqlalchemy import select
 from typing import Tuple, List
 from app.intelligence.core import ask_gemini
 from app.users.model import User
-from app.intelligence.config import TELEGRAM_BOT_TOKEN
+from app.core.config import settings
 
 cooldown_cache: dict[Tuple[int, str], float] = {}
 
 async def send_telegram_msg(chat_id: str, text: str):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
 
     payload = {
         "chat_id": chat_id,

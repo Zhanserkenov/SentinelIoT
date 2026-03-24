@@ -5,20 +5,15 @@ from fastapi import HTTPException, status
 import pandas as pd
 from datetime import datetime
 import io
-import asyncio
-import os
-from dotenv import load_dotenv
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+import logging
 
+import httpx
+
+from app.core.config import settings
 from app.suspicious.model import SuspiciousPacket
 from app.suspicious.verdicts import PacketLabel
 
-load_dotenv()
-
-GDRIVE_SERVICE_ACCOUNT_FILE = os.getenv("GDRIVE_SERVICE_ACCOUNT_FILE")
-GDRIVE_FOLDER_ID = os.getenv("GDRIVE_FOLDER_ID")
+logger = logging.getLogger(__name__)
 
 
 async def save_suspicious_packets(db: AsyncSession, suspicious_packets: List[Dict[str, Any]], user_id: int) -> None:
@@ -107,98 +102,68 @@ async def update_packet_label(db: AsyncSession, packet_id: int, new_label: Packe
     return packet
 
 
-def upload_to_gdrive_sync(filename: str, csv_bytes: io.BytesIO) -> str:
-    if not GDRIVE_SERVICE_ACCOUNT_FILE:
-        raise ValueError("GDRIVE_SERVICE_ACCOUNT_FILE not configured in .env")
-    if not GDRIVE_FOLDER_ID:
-        raise ValueError("GDRIVE_FOLDER_ID not configured in .env")
+async def send_suspicious_csv_to_telegram(filename: str, csv_bytes: bytes) -> None:
+    token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
+    chat_id = (settings.TELEGRAM_SUSPICIOUS_EXPORT_CHAT_ID or "").strip()
+    if not token or not chat_id:
+        raise ValueError("TELEGRAM_BOT_TOKEN and TELEGRAM_SUSPICIOUS_EXPORT_CHAT_ID must be set")
 
-    credentials = service_account.Credentials.from_service_account_file(
-        GDRIVE_SERVICE_ACCOUNT_FILE,
-        scopes=['https://www.googleapis.com/auth/drive.file']
-    )
+    url = f"https://api.telegram.org/bot{token}/sendDocument"
 
-    service = build('drive', 'v3', credentials=credentials)
-
-    csv_bytes.seek(0)
-    media = MediaIoBaseUpload(
-        csv_bytes,
-        mimetype='text/csv',
-        resumable=True
-    )
-
-    file_metadata = {
-        'name': filename,
-        'parents': [GDRIVE_FOLDER_ID]
-    }
-
-    file = service.files().create(
-        body=file_metadata,
-        media_body=media,
-        fields='id,webViewLink'
-    ).execute()
-    
-    return file.get('webViewLink', '')
-
-
-async def export_and_delete_labeled_packets(db: AsyncSession) -> str:
-    stmt = select(SuspiciousPacket).where(
-        SuspiciousPacket.label.in_([PacketLabel.BENIGN, PacketLabel.ATTACK])
-    )
-    result = await db.execute(stmt)
-    packets = list(result.scalars().all())
-    
-    if not packets:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No packets with BENIGN or ATTACK labels found"
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        response = await client.post(
+            url,
+            data={"chat_id": chat_id},
+            files={"document": (filename, csv_bytes, "text/csv")},
         )
+
+    if response.is_error:
+        detail = response.text
+        logger.error("Telegram sendDocument failed: %s", detail)
+        response.raise_for_status()
+
+
+async def export_all_packets_to_telegram_and_clear(db: AsyncSession) -> int:
+    result = await db.execute(select(SuspiciousPacket))
+    packets = list(result.scalars().all())
+    if not packets:
+        return 0
 
     packets_data = []
-    packet_ids = []
     for packet in packets:
-        packet_dict = {
-            'id': packet.id,
-            'probability': packet.probability,
-            'ack_flag_number': packet.ack_flag_number,
-            'https': packet.https,
-            'rate': packet.rate,
-            'header_length': packet.header_length,
-            'variance': packet.variance,
-            'max': packet.max,
-            'tot_sum': packet.tot_sum,
-            'time_to_live': packet.time_to_live,
-            'std': packet.std,
-            'psh_flag_number': packet.psh_flag_number,
-            'min': packet.min,
-            'dns': packet.dns,
-            'label': packet.label.value
-        }
-        packets_data.append(packet_dict)
-        packet_ids.append(packet.id)
+        packets_data.append({
+            "id": packet.id,
+            "user_id": packet.user_id,
+            "src_ip": packet.src_ip,
+            "src_mac": packet.src_mac,
+            "dst_mac": packet.dst_mac,
+            "probability": packet.probability,
+            "ack_flag_number": packet.ack_flag_number,
+            "https": packet.https,
+            "rate": packet.rate,
+            "header_length": packet.header_length,
+            "variance": packet.variance,
+            "max": packet.max,
+            "tot_sum": packet.tot_sum,
+            "time_to_live": packet.time_to_live,
+            "std": packet.std,
+            "psh_flag_number": packet.psh_flag_number,
+            "min": packet.min,
+            "dns": packet.dns,
+            "label": packet.label.value,
+        })
 
     df = pd.DataFrame(packets_data)
-    csv_bytes = io.BytesIO()
-    df.to_csv(csv_bytes, index=False)
+    text_buf = io.StringIO()
+    df.to_csv(text_buf, index=False)
+    csv_bytes = text_buf.getvalue().encode("utf-8")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"labeled_packets_{timestamp}.csv"
-    
-    try:
-        download_url = await asyncio.to_thread(
-            upload_to_gdrive_sync,
-            filename,
-            csv_bytes
-        )
+    filename = f"suspicious_packets_{timestamp}.csv"
 
-        delete_stmt = delete(SuspiciousPacket).where(SuspiciousPacket.id.in_(packet_ids))
-        await db.execute(delete_stmt)
-        await db.commit()
-        
-        return download_url
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload file to Google Drive: {str(e)}"
-        )
+    await send_suspicious_csv_to_telegram(filename, csv_bytes)
+
+    await db.execute(delete(SuspiciousPacket))
+    await db.commit()
+    logger.info("Exported %s suspicious packets to Telegram and cleared the table", len(packets))
+    return len(packets)

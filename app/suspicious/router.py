@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.suspicious.service import get_suspicious_packets, update_packet_label, export_and_delete_labeled_packets
+from app.suspicious.service import get_suspicious_packets, update_packet_label
 from app.suspicious.schemas import SuspiciousPacketResponse, PacketLabelUpdateRequest
 from app.core.security import get_current_admin
 from app.suspicious.verdicts import PacketLabel
@@ -49,12 +49,3 @@ async def update_packet_label_api(
     )
 
     return updated_packet
-
-
-@router.post("/packets/export-and-delete")
-async def export_and_delete_labeled_packets_api(current_user: User = Depends(get_current_admin),db: AsyncSession = Depends(get_db)):
-    download_url = await export_and_delete_labeled_packets(db)
-    return {
-        "status": "success",
-        "download_url": download_url
-    }
