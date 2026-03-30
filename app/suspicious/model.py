@@ -8,7 +8,7 @@ class SuspiciousPacket(Base):
     __tablename__ = 'suspicious_packets'
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
     src_ip = Column(String, nullable=False, index=True)
     src_mac = Column(String, nullable=False, index=True)
     dst_mac = Column(String, nullable=False, index=True)

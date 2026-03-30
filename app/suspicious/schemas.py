@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 from app.suspicious.verdicts import PacketLabel
 
 
@@ -8,7 +9,7 @@ class PacketLabelUpdateRequest(BaseModel):
 
 class SuspiciousPacketResponse(BaseModel):
     id: int
-    user_id: int
+    user_id: Optional[int]
 
     src_ip: str
     src_mac: str

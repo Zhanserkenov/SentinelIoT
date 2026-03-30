@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.users.service import update_telegram_user_id
+from app.users.service import update_telegram_user_id, delete_user_profile
 from app.users.schemas import TelegramUserIdSchema
 from app.users.model import User
 from app.core.security import get_current_user
@@ -37,3 +37,11 @@ async def update_telegram_user_id_api(
     return {
         "telegram_user_id": updated_user.telegram_user_id
     }
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_profile_api(
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    await delete_user_profile(db=db, user_id=current_user.id)
