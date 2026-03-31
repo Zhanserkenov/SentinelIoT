@@ -10,7 +10,6 @@ from app.users.model import User
 from app.core.security import create_access_token, get_user_from_token_payload
 from app.auth.email_service import send_registration_code, send_password_reset
 from app.core.redis import get_redis
-from app.core.security import verify_access_token
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 REGISTRATION_CODE_TTL_SECONDS = 180
@@ -113,14 +112,7 @@ async def request_password_reset(db: AsyncSession, email: EmailStr):
     await send_password_reset(str(email), reset_token)
 
 async def reset_password(db: AsyncSession, token: str, new_password: str):
-    payload = verify_access_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired token"
-        )
-
-    user = await get_user_from_token_payload(db, payload, "password_reset")
+    user = await get_user_from_token_payload(db, token, "password_reset")
 
     hashed_password = get_hashed_password(new_password)
     user.password = hashed_password
