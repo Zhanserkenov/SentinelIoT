@@ -1,4 +1,34 @@
 services:
+  core:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    container_name: sentineliot-core
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+      - rabbitmq
+    ports:
+      - "8000:8000"
+
+  analyzer:
+    build:
+      context: .
+      dockerfile: analyzer/Dockerfile
+    container_name: sentineliot-analyzer
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+
   redis:
     image: redis:7-alpine
     container_name: sentineliot-redis
@@ -9,5 +39,16 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: sentineliot-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
 volumes:
   redis_data:
+  rabbitmq_data:

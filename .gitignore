@@ -12,7 +12,7 @@ venv/
 .vscode/
 
 # Data / models
-app/ml/iot_rf_model_balanced_with_medians_normalized.pkl
+analyzer/app/ml/iot_rf_model_balanced_with_medians_normalized.pkl
 
 # Environment variables
 .env
