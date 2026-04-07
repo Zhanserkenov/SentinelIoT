@@ -7,7 +7,6 @@ import aio_pika
 from core.app.core.config import settings
 from core.app.core.database import AsyncSessionLocal
 from core.app.core.redis import get_redis
-from core.app.intelligence.service import process_ai_anomaly_report
 from core.app.suspicious.service import save_suspicious_packets
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,6 @@ async def _handle_result_message(payload: Dict[str, Any]) -> None:
     user_id = int(payload["user_id"])
     result = payload["result"]
     suspicious_packets = payload.get("suspicious_packets", [])
-    alerts_to_dispatch: List[dict] = payload.get("alerts_to_dispatch", [])
 
     redis = get_redis()
     await redis.set(f"analysis_result:{user_id}", json.dumps(result), ex=3600)
@@ -25,8 +23,6 @@ async def _handle_result_message(payload: Dict[str, Any]) -> None:
     async with AsyncSessionLocal() as db:
         if suspicious_packets:
             await save_suspicious_packets(db, suspicious_packets, user_id)
-        if alerts_to_dispatch:
-            await process_ai_anomaly_report(db, user_id, alerts_to_dispatch)
 
 
 async def consume_ml_results() -> None:

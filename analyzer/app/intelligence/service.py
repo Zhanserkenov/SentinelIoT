@@ -3,7 +3,7 @@ import time
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Tuple, List
-from core.app.intelligence.core import ask_gemini
+from analyzer.app.intelligence.core import ask_gemini
 from core.app.users.model import User
 from core.app.core.config import settings
 

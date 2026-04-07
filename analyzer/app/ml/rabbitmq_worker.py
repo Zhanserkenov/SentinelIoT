@@ -6,8 +6,10 @@ from typing import Any, Dict, List
 import aio_pika
 from dotenv import load_dotenv
 
+from analyzer.app.intelligence.service import process_ai_anomaly_report
 from analyzer.app.ml.schemas import FlowFeatures
 from analyzer.app.ml.service import analyze_window
+from core.app.core.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +46,16 @@ async def consume_analysis_tasks() -> None:
                     flows_payload: List[Dict[str, Any]] = data.get("flows", [])
                     flows = [FlowFeatures(**item) for item in flows_payload]
                     result, suspicious_packets, alerts_to_dispatch = analyze_window(flows, user_id)
+
+                    if alerts_to_dispatch:
+                        async with AsyncSessionLocal() as db:
+                            await process_ai_anomaly_report(db, user_id, alerts_to_dispatch)
+
                     payload = {
                         "task_id": data.get("task_id"),
                         "user_id": user_id,
                         "result": result.model_dump(),
                         "suspicious_packets": suspicious_packets,
-                        "alerts_to_dispatch": alerts_to_dispatch,
                     }
                     await _publish_result(channel, payload)
                 except Exception:
