@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.app.auth.router import router as auth_router
+from core.app.network.router import router as network_router
 from core.app.core.redis import close_redis_connection
 from core.app.ml.router import router as ml_router
 from core.app.ml.results_consumer import consume_ml_results
@@ -49,6 +50,7 @@ app.include_router(auth_router)
 app.include_router(ml_router)
 app.include_router(suspicious_router)
 app.include_router(users_router)
+app.include_router(network_router)
 
 
 @app.get("/")

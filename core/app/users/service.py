@@ -56,3 +56,39 @@ async def delete_user_profile(db: AsyncSession, user_id: int) -> None:
     )
     await db.execute(delete(User).where(User.id == user_id))
     await db.commit()
+
+
+async def update_orange_pi_id(db: AsyncSession, user_id: int, orange_pi_id: str) -> User:
+    stmt = select(User).where(User.id == user_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with id {user_id} not found"
+        )
+
+    if orange_pi_id:
+        existing_user_stmt = select(User).where(
+            User.orange_pi_id == orange_pi_id,
+            User.id != user_id
+        )
+        existing_user_result = await db.execute(existing_user_stmt)
+        existing_user = existing_user_result.scalar_one_or_none()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This orange_pi_id is already associated with another account"
+            )
+
+    user.orange_pi_id = orange_pi_id
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def get_user_by_orange_pi_id(db: AsyncSession, orange_pi_id: str) -> User | None:
+    stmt = select(User).where(User.orange_pi_id == orange_pi_id)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()

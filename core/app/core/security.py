@@ -26,6 +26,8 @@ def verify_access_token(token: str):
     except JWTError:
         return None
 
+
+
 async def _get_user_from_token(db: AsyncSession, token: str, expected_type: str = None) -> User:
     payload = verify_access_token(token)
 

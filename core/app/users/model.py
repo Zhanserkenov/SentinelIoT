@@ -12,3 +12,4 @@ class User(Base):
     password = Column(String, nullable=False)
 
     telegram_user_id = Column(String, unique=True, nullable=True)
+    orange_pi_id = Column(String, unique=True, nullable=True, index=True)

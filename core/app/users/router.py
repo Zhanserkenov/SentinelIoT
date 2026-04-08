@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.app.users.service import update_telegram_user_id, delete_user_profile
-from core.app.users.schemas import TelegramUserIdSchema
-from core.app.users.model import User
 from core.app.core.security import get_current_user
+from core.app.users.service import update_telegram_user_id, delete_user_profile, update_orange_pi_id
+from core.app.users.schemas import TelegramUserIdSchema, OrangePiIdSchema
+from core.app.users.model import User
 from core.app.core.database import get_db
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -45,3 +45,23 @@ async def delete_my_profile_api(
         db: AsyncSession = Depends(get_db)
 ):
     await delete_user_profile(db=db, user_id=current_user.id)
+
+
+@router.get("/me/orange-pi-id", response_model=OrangePiIdSchema)
+async def get_orange_pi_id_api(current_user: User = Depends(get_current_user)):
+    return {"orange_pi_id": current_user.orange_pi_id}
+
+
+@router.patch("/me/orange-pi-id", response_model=OrangePiIdSchema)
+async def update_orange_pi_id_api(
+        request: OrangePiIdSchema,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    if not request.orange_pi_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="orange_pi_id cannot be empty"
+        )
+    updated_user = await update_orange_pi_id(db=db, user_id=current_user.id, orange_pi_id=request.orange_pi_id)
+    return {"orange_pi_id": updated_user.orange_pi_id}
