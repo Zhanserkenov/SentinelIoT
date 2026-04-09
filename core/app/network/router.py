@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.app.core.database import get_db
 from core.app.core.redis import get_redis
-from core.app.core.security import get_current_admin
+from core.app.core.security import get_current_user
 from core.app.network.schemas import ConnectedDeviceOut, DevicesSnapshotIn
 from core.app.network.service import get_online_devices, upsert_devices_snapshot
 from core.app.users.service import get_user_by_orange_pi_id
@@ -24,11 +24,11 @@ async def ingest_connected_devices(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Orange Pi identifier")
 
     redis = get_redis()
-    count = await upsert_devices_snapshot(redis, user.id, payload.devices, payload.ts)
+    count = await upsert_devices_snapshot(redis, user.id, payload.devices)
     return {"status": "accepted", "devices_count": count}
 
 
 @router.get("/devices", response_model=list[ConnectedDeviceOut])
-async def get_online_connected_devices(current_user: User = Depends(get_current_admin)):
+async def get_online_connected_devices(current_user: User = Depends(get_current_user)):
     redis = get_redis()
     return await get_online_devices(redis, current_user.id)

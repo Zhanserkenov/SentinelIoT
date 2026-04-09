@@ -5,6 +5,10 @@ from alembic import context
 from core.app.core.config import settings
 from core.app.core.database import Base
 
+# Import models so Base.metadata is populated for autogenerate
+from core.app.users import model as _users_model  # noqa: F401
+from core.app.suspicious import model as _suspicious_model  # noqa: F401
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

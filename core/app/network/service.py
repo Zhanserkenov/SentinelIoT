@@ -7,7 +7,7 @@ from core.app.network.schemas import ConnectedDeviceIn, ConnectedDeviceOut
 LATEST_SNAPSHOT_KEY = "network:user:{user_id}:latest_devices"
 
 
-async def upsert_devices_snapshot(redis: Redis, user_id: int, devices: list[ConnectedDeviceIn], ts: float) -> int:
+async def upsert_devices_snapshot(redis: Redis, user_id: int, devices: list[ConnectedDeviceIn]) -> int:
     unique = {}
     for dev in devices:
         mac = dev.mac.strip().lower()
@@ -15,9 +15,8 @@ async def upsert_devices_snapshot(redis: Redis, user_id: int, devices: list[Conn
             unique[mac] = dev
 
     snapshot = {
-        "ts": ts,
         "devices": [
-            {"ip": dev.ip, "mac": mac, "iface": dev.iface}
+            {"ip": dev.ip, "mac": mac}
             for mac, dev in unique.items()
         ],
     }
@@ -30,15 +29,12 @@ async def get_online_devices(redis: Redis, user_id: int) -> list[ConnectedDevice
     if not raw:
         return []
     data = json.loads(raw)
-    ts = float(data.get("ts", 0.0))
     devices = data.get("devices", [])
 
     result = [
         ConnectedDeviceOut(
             ip=str(item.get("ip", "")),
-            mac=str(item.get("mac", "")),
-            iface=str(item.get("iface", "")),
-            last_seen_ts=ts,
+            mac=str(item.get("mac", ""))
         )
         for item in devices
     ]
