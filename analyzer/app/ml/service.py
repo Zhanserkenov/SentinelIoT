@@ -65,7 +65,7 @@ def _create_alert_data(src_ip: str, flow_count: int, max_probability: float, gro
 def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnalysisResponse, List[dict], List[dict]]:
     total_flows = len(flows)
     suspicious_packets: List[dict] = []
-    alerts_to_dispatch: List[dict] = []
+    alerts_packets: List[dict] = []
 
     if not flows:
         result = WindowAnalysisResponse(
@@ -78,7 +78,7 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
             )
         )
         _user_results[user_id] = result
-        return result, suspicious_packets, alerts_to_dispatch
+        return result, suspicious_packets, alerts_packets
 
     try:
         model, scaler, features, medians = _get_model_objects()
@@ -110,7 +110,7 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
             )
         )
         _user_results[user_id] = result
-        return result, suspicious_packets, alerts_to_dispatch
+        return result, suspicious_packets, alerts_packets
 
     try:
         X_scaled = scaler.transform(X)
@@ -123,10 +123,10 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
 
     df_flows["probability"] = probabilities
 
-    sources, anomalous_count, suspicious_count, packets, alerts = _analyze_sources_by_ip(df_flows)
+    sources, anomalous_count, suspicious_count, suspicious, alerts = _analyze_sources_by_ip(df_flows)
 
-    suspicious_packets.extend(packets)
-    alerts_to_dispatch.extend(alerts)
+    suspicious_packets.extend(suspicious)
+    alerts_packets.extend(alerts)
 
     result = WindowAnalysisResponse(
         sources=sources,
@@ -139,7 +139,7 @@ def analyze_window(flows: List[FlowFeatures], user_id: int) -> tuple[WindowAnaly
     )
 
     _user_results[user_id] = result
-    return result, suspicious_packets, alerts_to_dispatch
+    return result, suspicious_packets, alerts_packets
 
 
 def _analyze_sources_by_ip(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacAnalysis], int, int, List[dict], List[dict]]:
@@ -147,7 +147,7 @@ def _analyze_sources_by_ip(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacA
     anomalous_count = 0
     suspicious_count = 0
     suspicious_packets: List[dict] = []
-    alerts_to_dispatch: List[dict] = []
+    alerts_packets: List[dict] = []
 
     for src_ip, group in df_flows.groupby("src_ip"):
         group_probs = group["probability"].values
@@ -166,7 +166,7 @@ def _analyze_sources_by_ip(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacA
             status_value = "anomaly"
             anomalous_count += 1
             alert_data = _create_alert_data(str(src_ip), flow_count, max_probability, group)
-            alerts_to_dispatch.append(alert_data)
+            alerts_packets.append(alert_data)
         elif suspicious_flows >= MIN_SUSPICIOUS_COUNT:
             status_value = "suspicious"
             suspicious_count += 1
@@ -185,7 +185,7 @@ def _analyze_sources_by_ip(df_flows: pd.DataFrame) -> Tuple[Dict[str, SourceMacA
             status=status_value
         )
 
-    return sources, anomalous_count, suspicious_count, suspicious_packets, alerts_to_dispatch
+    return sources, anomalous_count, suspicious_count, suspicious_packets, alerts_packets
 
 def get_user_analysis_result(user_id: int) -> WindowAnalysisResponse:
     if user_id not in _user_results:
