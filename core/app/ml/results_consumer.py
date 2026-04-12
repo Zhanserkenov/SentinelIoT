@@ -1,16 +1,16 @@
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import aio_pika
 
 from core.app.core.config import settings
 from core.app.core.database import AsyncSessionLocal
 from core.app.core.redis import get_redis
+from core.app.stats.service import add_window_summary_to_hourly_stats
 from core.app.suspicious.service import save_suspicious_packets
 
 logger = logging.getLogger(__name__)
-
 
 async def _handle_result_message(payload: Dict[str, Any]) -> None:
     user_id = int(payload["user_id"])
@@ -23,6 +23,12 @@ async def _handle_result_message(payload: Dict[str, Any]) -> None:
     async with AsyncSessionLocal() as db:
         if suspicious_packets:
             await save_suspicious_packets(db, suspicious_packets, user_id)
+        if isinstance(result, dict):
+            summary = result.get("summary") or {}
+        else:
+            summary = result.summary.model_dump()
+        if summary.get("total_flows", 0) > 0:
+            await add_window_summary_to_hourly_stats(db, user_id, summary)
 
 
 async def consume_ml_results() -> None:

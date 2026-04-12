@@ -12,6 +12,7 @@ from core.app.ml.router import router as ml_router
 from core.app.ml.results_consumer import consume_ml_results
 from core.app.suspicious.router import router as suspicious_router
 from core.app.suspicious.scheduler import register_suspicious_export_scheduler
+from core.app.stats.router import router as stats_router
 from core.app.users.router import router as users_router
 
 scheduler = AsyncIOScheduler()
@@ -51,6 +52,7 @@ app.include_router(ml_router)
 app.include_router(suspicious_router)
 app.include_router(users_router)
 app.include_router(network_router)
+app.include_router(stats_router)
 
 
 @app.get("/")
