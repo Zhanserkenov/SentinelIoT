@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, Dict
@@ -32,16 +33,26 @@ async def _handle_result_message(payload: Dict[str, Any]) -> None:
 
 
 async def consume_ml_results() -> None:
-    connection = await aio_pika.connect_robust(settings.RABBITMQ_URL)
-    channel = await connection.channel()
-    await channel.set_qos(prefetch_count=10)
-    queue = await channel.declare_queue(settings.ML_RESULTS_QUEUE, durable=True)
+    while True:
+        connection: aio_pika.RobustConnection | None = None
+        try:
+            connection = await aio_pika.connect_robust(settings.RABBITMQ_URL)
+            channel = await connection.channel()
+            await channel.set_qos(prefetch_count=10)
+            queue = await channel.declare_queue(settings.ML_RESULTS_QUEUE, durable=True)
 
-    async with queue.iterator() as queue_iter:
-        async for message in queue_iter:
-            async with message.process(requeue=False):
-                try:
-                    payload = json.loads(message.body.decode("utf-8"))
-                    await _handle_result_message(payload)
-                except Exception:
-                    logger.exception("Failed to process ML result message")
+            async with queue.iterator() as queue_iter:
+                async for message in queue_iter:
+                    async with message.process(requeue=False):
+                        try:
+                            payload = json.loads(message.body.decode("utf-8"))
+                            await _handle_result_message(payload)
+                        except Exception:
+                            logger.exception("Failed to process ML result message")
+        except asyncio.CancelledError:
+            if connection:
+                await connection.close()
+            raise
+        except Exception:
+            logger.warning("ML results consumer lost RabbitMQ connection, retrying in 5 seconds")
+            await asyncio.sleep(5)
