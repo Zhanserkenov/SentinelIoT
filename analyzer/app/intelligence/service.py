@@ -29,7 +29,7 @@ async def process_ai_anomaly_report(db: AsyncSession, user_id: int, alerts_to_di
         
         if cache_key in cooldown_cache:
             last_time = cooldown_cache[cache_key]
-            if current_time - last_time < 3600:
+            if current_time - last_time < 60:
                 continue
         
         cooldown_cache[cache_key] = current_time
